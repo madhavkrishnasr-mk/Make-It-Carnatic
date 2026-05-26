@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Make it Karnatic</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121214;
+      color: #e1e1e6;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    header {
+      background-color: #1a1a1e;
+      padding: 12px 25px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #29292e;
+      height: 60px;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+
+    .logo-container { display: flex; align-items: center; gap: 15px; }
+    .logo { font-size: 20px; font-weight: bold; color: #00adb5; }
+
+    .sidebar-toggle {
+      background: #202024; border: 1px solid #29292e; color: #e1e1e6;
+      padding: 7px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;
+    }
+
+    .search-bar { display: flex; gap: 10px; width: 35%; max-width: 450px; }
+    .search-bar input {
+      flex: 1; background-color: #202024; border: 1px solid #29292e;
+      padding: 7px 12px; border-radius: 6px; color: #fff; font-size: 13px; outline: none;
+    }
+    .search-bar button {
+      background-color: #00adb5; color: #fff; border: none;
+      padding: 7px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
+    }
+
+    .header-controls { display: flex; align-items: center; gap: 15px; }
+
+    .mic-btn {
+      background: #202024; border: 1px solid #ff4d4d; color: #ff4d4d;
+      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px;
+      transition: all 0.2s ease;
+    }
+    .mic-btn.active { background: #ff4d4d; color: #fff; box-shadow: 0 0 10px rgba(255,77,77,0.4); }
+
+    /* === LAYOUT === */
+    .workspace {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      overflow: hidden;
+      transition: grid-template-columns 0.3s cubic-bezier(0.4,0,0.2,1);
+      min-height: 0;
+    }
+    .workspace.sidebar-closed { grid-template-columns: 0px 1fr; }
+
+    .left-panel {
+      background-color: #16161a;
+      border-right: 1px solid #29292e;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      overflow-y: auto;
+      transition: opacity 0.2s ease;
+      min-height: 0;
+    }
+    .workspace.sidebar-closed .left-panel { opacity: 0; pointer-events: none; padding: 0; }
+
+    .control-box {
+      background: #1a1a1e; border-radius: 8px; border: 1px solid #29292e; padding: 12px;
+      flex-shrink: 0;
+    }
+    .control-box h4 { font-size: 11px; color: #00adb5; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .raga-select-dropdown {
+      background: #202024; border: 1px solid #29292e; color: #fff;
+      padding: 7px; border-radius: 6px; font-size: 13px; outline: none; width: 100%; cursor: pointer;
+    }
+    .raga-display-card {
+      background: #202024; border: 1px solid #29292e; border-radius: 6px; padding: 10px; margin-top: 8px;
+    }
+    .raga-notation-line { font-size: 13px; color: #cbd5e1; margin-top: 4px; }
+
+    .skill-action-btn {
+      background: #00adb5; color: #fff; border: none; padding: 6px 14px;
+      border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
+    }
+
+    .creator-input-group { display: flex; flex-direction: column; gap: 7px; }
+    .creator-input-group input {
+      background: #202024; border: 1px solid #29292e; padding: 7px 10px;
+      border-radius: 4px; color: #fff; font-size: 13px; outline: none;
+    }
+    .creator-buttons { display: flex; gap: 6px; }
+    .add-note-btn {
+      background: #202024; border: 1px solid #29292e; color: #e1e1e6;
+      padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;
+    }
+    .capture-btn {
+      background: #202024; border: 1px solid #ff9f43; color: #ff9f43;
+      padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;
+      font-weight: bold;
+    }
+    .capture-btn.active { background: #ff9f43; color: #000; }
+
+    .notes-feed {
+      background: #1a1a1e; border-radius: 8px; border: 1px solid #29292e;
+      padding: 12px; display: flex; flex-direction: column; flex: 1; min-height: 120px; overflow: hidden;
+    }
+    .notes-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; overflow-y: auto; flex: 1; }
+    .note-row {
+      display: flex; flex-direction: column; padding: 8px 12px;
+      background: #202024; border-radius: 6px; border-left: 4px solid #00adb5; cursor: pointer; flex-shrink: 0;
+    }
+    .note-row:hover { background: #2a2a30; }
+    .song-row-title { font-size: 12px; color: #00adb5; font-weight: bold; margin-bottom: 2px; }
+    .carnatic-notation { font-size: 14px; color: #ffffff; }
+
+    /* === VISUALIZER === */
+    .visualizer-panel {
+      background: #111113; position: relative; overflow: hidden;
+      display: flex; flex-direction: column; width: 100%; min-height: 0;
+    }
+    .visualizer-header {
+      padding: 8px 20px; background-color: #16161a; border-bottom: 1px solid #29292e;
+      font-size: 13px; color: #e1e1e6; display: flex; justify-content: space-between; align-items: center;
+      height: 42px; flex-shrink: 0;
+    }
+    .controls-group { display: flex; align-items: center; gap: 12px; }
+    .summary-btn {
+      background: #202024; border: 1px solid #ff9f43; color: #ff9f43;
+      padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold;
+    }
+
+    #visualizerCanvas { flex: 1; width: 100%; display: block; }
+
+    .summary-overlay {
+      position: absolute; top: 52px; right: 20px; background: #1a1a1e;
+      border: 1px solid #ff9f43; border-radius: 8px; padding: 15px; width: 260px;
+      z-index: 20; box-shadow: 0 4px 20px rgba(0,0,0,0.6); display: none;
+    }
+
+    /* === PIANO (3 Octaves, widened) === */
+    .keyboard-container {
+      height: 155px;
+      background: #09090a;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      border-top: 3px solid #29292e;
+      position: relative;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+
+    .piano {
+      display: flex;
+      position: relative;
+      height: 145px;
+      flex-shrink: 0;
+    }
+
+    .white-key {
+      width: 40px;
+      height: 140px;
+      background: linear-gradient(to bottom, #fefefe 0%, #efefef 100%);
+      border: 1px solid #aaa;
+      border-radius: 0 0 5px 5px;
+      cursor: pointer;
+      z-index: 1;
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.06s;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 5px;
+    }
+    .key-label { font-size: 9px; color: #666; pointer-events: none; }
+
+    .white-key.active { background: linear-gradient(to bottom, #ffd32a, #ffca28) !important; transform: translateY(1px); height: 139px; }
+    .white-key.wrong  { background: linear-gradient(to bottom, #ff4d4d, #ff3333) !important; }
+    .white-key.hint   { background: linear-gradient(to bottom, #1e272e, #2f3640); border-bottom: 4px solid #00adb5; }
+
+    .black-key {
+      width: 24px;
+      height: 90px;
+      background: linear-gradient(to bottom, #2c3e50 0%, #000 100%);
+      border: 1px solid #000;
+      border-radius: 0 0 4px 4px;
+      position: absolute;
+      z-index: 2;
+      cursor: pointer;
+      top: 0;
+      transition: background 0.06s;
+    }
+    .black-key.active { background: linear-gradient(to bottom, #ffd32a, #e5b810) !important; }
+    .black-key.wrong  { background: linear-gradient(to bottom, #cc0000, #990000) !important; }
+    .black-key.hint   { background: linear-gradient(to bottom, #000, #1e272e); border-bottom: 3px solid #00adb5; }
+
+    #micNoteCapture {
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      background: #1a1a1e; border: 1px solid #29292e; border-radius: 6px;
+      padding: 4px 14px; font-size: 12px; color: #00adb5; z-index: 10; white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-container">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">☰ Toggle Sidebar</button>
+    <div class="logo">Make it Karnatic</div>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="youtubeUrl" placeholder="Paste YouTube link...">
+    <button onclick="loadSong()">Load Link</button>
+  </div>
+  <div class="header-controls">
+    <button id="micToggleBtn" class="mic-btn" onclick="toggleMicDetection()">🎙️ Mic: OFF</button>
+    <div style="font-size: 12px; color: #00adb5;" id="pitchDisplay">Pitch: Idle</div>
+  </div>
+</header>
+
+<div class="workspace" id="mainWorkspace">
+  <div class="left-panel">
+    <div class="control-box" id="videoContainer" style="min-height:140px; display:flex; align-items:center; justify-content:center; color:#555; font-size:13px;">
+      YouTube Media Panel
+    </div>
+
+    <div class="control-box">
+      <h4>72 Melakarta Parent Raga Engine</h4>
+      <select id="ragaLibraryDropdown" class="raga-select-dropdown" onchange="loadSelectedRaga()"></select>
+      <div class="raga-display-card">
+        <div id="ragaCardTitle" style="font-weight:bold; color:#00adb5; font-size:13px;">Mayamalavagowla</div>
+        <div class="raga-notation-line"><strong>Aro:</strong> <span id="ragaAroText">സ രി ഗ മ പ ധ നി സ</span></div>
+        <div class="raga-notation-line"><strong>Ava:</strong> <span id="ragaAvaText">സ നി ധ പ മ ഗ രി സ</span></div>
+      </div>
+      <button class="skill-action-btn" style="width:100%; margin-top:8px; padding:7px;" onclick="playCurrentRagaLibrary()">▶ Launch Raga Stream</button>
+    </div>
+
+    <div class="control-box">
+      <h4>Composition Builder</h4>
+      <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+        <span style="font-size:11px; color:#888;">Mic capture:</span>
+        <button id="captureModeBtn" class="capture-btn" onclick="toggleCaptureMode()">🎤 Capture to Song OFF</button>
+      </div>
+      <div class="creator-input-group">
+        <input type="text" id="customSongNameInput" placeholder="Song/Gitam Title..." value="Anandabhairavi Line">
+        <input type="text" id="customNotesInput" placeholder="Notes (e.g. സ രി ഗ മ)..." value="സ രി ഗ മ പ ധ">
+        <div class="creator-buttons">
+          <button class="add-note-btn" onclick="promptAddNote()">➕ Add Note</button>
+          <button class="add-note-btn" onclick="clearNotesInput()">🗑 Clear</button>
+          <button class="skill-action-btn" style="flex:1;" onclick="addNewSongToFeed()">🎵 Save Song</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes-feed">
+      <h3 style="font-size:13px; color:#e1e1e6; flex-shrink:0;">Saved Compositions</h3>
+      <div class="notes-list" id="customSongsPlaylistContainer">
+        <div class="note-row" onclick="triggerLinePractice(['C4','D4','E4','F4','G4','A4','B4','C5'],['സ','രി','ഗ','മ','പ','ധ','നി','സ'])">
+          <div class="song-row-title">Sarali Varisai Basic</div>
+          <div class="carnatic-notation">സ &nbsp; രി &nbsp; ഗ &nbsp; മ &nbsp; p &nbsp; ധ &nbsp; നി &nbsp; സ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="visualizer-panel">
+    <div class="visualizer-header">
+      <span id="streamTitle" style="font-weight:600; color:#00adb5;">Waterfall Stream</span>
+      <div class="controls-group">
+        <button class="summary-btn" onclick="toggleSummaryPanel()">📊 Summary</button>
+        <label for="speedSlider" style="font-size:12px;">Speed:</label>
+        <input type="range" id="speedSlider" min="1" max="8" value="3" style="width:80px;">
+      </div>
+    </div>
+
+    <div class="summary-overlay" id="summaryOverlay">
+      <h4 style="margin-bottom:8px; color:#ff9f43;">Practice Evaluation</h4>
+      <p style="margin:4px 0;">Total Attempts: <span id="statTotal" style="font-weight:bold;">0</span></p>
+      <p style="margin:4px 0;">Mistakes: <span id="statMistakes" style="color:#ff4d4d; font-weight:bold;">0</span></p>
+      <p style="margin:4px 0;">Accuracy: <span id="statAccuracy" style="color:#00adb5; font-weight:bold;">100%</span></p>
+      <button onclick="resetStats()" style="margin-top:8px; background:#202024; border:1px solid #29292e; color:#e1e1e6; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px;">Reset</button>
+    </div>
+
+    <canvas id="visualizerCanvas"></canvas>
+  </div>
+</div>
+
+<div class="keyboard-container">
+  <div id="micNoteCapture" style="display:none;">Detected: —</div>
+  <div class="piano" id="pianoWrapper">
+    </div>
+</div>
+
+<script>
+// ==============================
+// AUDIO SETUP
+// ==============================
+const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+let analyserNode = null;
+let isMicActive = false;
+let micBuffer = new Float32Array(2048);
+let captureMode = false;   
+let lastCapturedNote = null;
+let lastCaptureTime = 0;
+let lastAnalysisTime = 0;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new AudioCtxClass();
+}
+
+// ==============================
+// NOTE FREQUENCIES  (C3–C6)
+// ==============================
+const noteFreqs = {
+  "C3":130.81,"C#3":138.59,"D3":146.83,"D#3":155.56,"E3":164.81,"F3":174.61,"F#3":185.00,"G3":196.00,"G#3":207.65,"A3":220.00,"A#3":233.08,"B3":246.94,
+  "C4":261.63,"C#4":277.18,"D4":293.66,"D#4":311.13,"E4":329.63,"F4":349.23,"F#4":369.99,"G4":392.00,"G#4":415.30,"A4":440.00,"A#4":466.16,"B4":493.88,
+  "C5":523.25,"C#5":554.37,"D5":587.33,"D#5":622.25,"E5":659.25,"F5":698.46,"F#5":739.99,"G5":783.99,"G#5":830.61,"A5":880.00,"A#5":932.33,"B5":987.77,
+  "C6":1046.50
+};
+
+const swaraToNote = {
+  'സ':'C4','രി':'D4','ഗ':'E4','മ':'F4','പ':'G4','ധ':'A4','നി':'B4',
+  'S':'C4','R':'D4','G':'E4','M':'F4','P':'G4','D':'A4','N':'B4'
+};
+
+const noteToSwara = {
+  'C':'സ','C#':'—','D':'രി','D#':'—','E':'ഗ','F':'മ','F#':'—','G':'പ','G#':'—','A':'ധ','A#':'—','B':'നി'
+};
+
+function getNoteBase(note) { return note.replace(/\d/,''); }
+
+// ==============================
+// PIANO BUILDER
+// ==============================
+const whiteKeys = ['C','D','E','F','G','A','B'];
+const blackKeyMap = { 'C':'C#', 'D':'D#', 'F':'F#', 'G':'G#', 'A':'A#' };
+const WHITE_KEY_WIDTH = 40; 
+const BLACK_KEY_WIDTH = 24;
+const BLACK_KEY_OFFSETS = { 'C': 27, 'D': 55, 'F': 111, 'G': 139, 'A': 167 }; 
+
+function buildPiano() {
+  const wrapper = document.getElementById('pianoWrapper');
+  wrapper.innerHTML = '';
+
+  const octaves = [3, 4, 5];
+  let pianoWidth = 0;
+
+  octaves.forEach(oct => {
+    const octaveDiv = document.createElement('div');
+    octaveDiv.style.position = 'relative';
+    octaveDiv.style.display = 'flex';
+    octaveDiv.style.flexShrink = '0';
+    octaveDiv.style.width = (WHITE_KEY_WIDTH * 7) + 'px';
+
+    whiteKeys.forEach(wn => {
+      const note = wn + oct;
+      const key = document.createElement('div');
+      key.className = 'white-key';
+      key.dataset.note = note;
+      key.innerHTML = `<span class="key-label">${wn}${oct}</span>`;
+      key.addEventListener('mousedown', () => handleKeyPress(note));
+      key.addEventListener('touchstart', e => { e.preventDefault(); handleKeyPress(note); }, { passive: false });
+      octaveDiv.appendChild(key);
+    });
+
+    whiteKeys.forEach(wn => {
+      if (!blackKeyMap[wn]) return;
+      const note = blackKeyMap[wn] + oct;
+      const key = document.createElement('div');
+      key.className = 'black-key';
+      key.dataset.note = note;
+      key.style.left = BLACK_KEY_OFFSETS[wn] + 'px';
+      key.addEventListener('mousedown', () => handleKeyPress(note));
+      key.addEventListener('touchstart', e => { e.preventDefault(); handleKeyPress(note); }, { passive: false });
+      octaveDiv.appendChild(key);
+    });
+
+    pianoWidth += WHITE_KEY_WIDTH * 7;
+    wrapper.appendChild(octaveDiv);
+  });
+
+  const c6 = document.createElement('div');
+  c6.className = 'white-key';
+  c6.dataset.note = 'C6';
+  c6.innerHTML = `<span class="key-label">C6</span>`;
+  c6.addEventListener('mousedown', () => handleKeyPress('C6'));
+  c6.addEventListener('touchstart', e => { e.preventDefault(); handleKeyPress('C6'); }, { passive: false });
+  wrapper.appendChild(c6);
+
+  wrapper.style.width = (pianoWidth + WHITE_KEY_WIDTH) + 'px';
+}
+
+// ==============================
+// 72 MELAKARTA LIBRARY
+// ==============================
+const melakartaNames = [
+  "Kanakangi","Ratnangi","Ganamurthi","Vanaspati","Manavati","Tanarupi","Senavati","Hanumatodi","Dhenuka","Natakapriya",
+  "Kokilapriya","Rupavati","Gayakapriya","Vakulabharanam","Mayamalavagowla","Chakravakam","Suryakantam","Hatakambari","Jhankaradhwani","Natabhairavi",
+  "Keeravani","Kharaharapriya","Gourimanohari","Varunapriya","Mararanjani","Charukesi","Sarasangi","Harikambhoji","Dheerasankarabharanam","Naganandini",
+  "Yagapriya","Ragavardhani","Gangeyabhushani","Vagadhishwari","Shulini","Chalanata","Salagam","Jalanatarangini","Jhalavarali","Navaneetam",
+  "Pavani","Raghupriya","Gavambhodhi","Bhavapriya","Shubhapantuvarali","Shadvidhamargini","Suvarnangi","Divyamani","Dhavalambari","Namanarayani",
+  "Kamavardhani","Ramapriya","Gamanashrama","Vishwambhari","Shyamalangi","Shanmukhapriya","Simhendramadhyamam","Hemavati","Dharmavati","Nitishimati",
+  "Kantamani","Rishabhapriya","Latangi","Vachaspati","Mechakalyani","Chitrambari","Sucharitra","Jyotiswarupini","Dhatuvardhani","Nasikabhushani",
+  "Kosalam","Rasikapriya"
+];
+
+const ragaLibrary = {};
+
+function generateMelakartaLibrary() {
+  melakartaNames.forEach((name, idx) => {
+    const id = idx + 1;
+    const chakra = Math.floor(idx / 6);
+    const ragaInChakra = idx % 6;
+    let r, g, d, n;
+    const m = id <= 36 ? "F4" : "F#4";
+
+    if      (chakra === 0 || chakra === 6)  { r="C#4"; g="D4"; }
+    else if (chakra === 1 || chakra === 7)  { r="C#4"; g="D#4"; }
+    else if (chakra === 2 || chakra === 8)  { r="C#4"; g="E4"; }
+    else if (chakra === 3 || chakra === 9)  { r="D4";  g="D#4"; }
+    else if (chakra === 4 || chakra === 10) { r="D4";  g="E4"; }
+    else                                     { r="D#4"; g="E4"; }
+
+    if      (ragaInChakra === 0) { d="G#4"; n="A4"; }
+    else if (ragaInChakra === 1) { d="G#4"; n="A#4"; }
+    else if (ragaInChakra === 2) { d="G#4"; n="B4"; }
+    else if (ragaInChakra === 3) { d="A4";  n="A#4"; }
+    else if (ragaInChakra === 4) { d="A4";  n="B4"; }
+    else                          { d="A#4"; n="B4"; }
+
+    const aro = ["C4", r, g, m, "G4", d, n, "C5"];
+    ragaLibrary[id] = {
+      name: `${id}. ${name}`,
+      aroNotes:  aro,
+      avaNotes:  [...aro].reverse(),
+      aroLabels: ["സ","രി","ഗ","മ","പ","ധ","നി","സ"],
+      avaLabels: ["സ","നി","ധ","പ","മ","ഗ","രി","സ"]
+    };
+  });
+}
+
+function initRagaDropdown() {
+  const dd = document.getElementById('ragaLibraryDropdown');
+  dd.innerHTML = "";
+  for (let i = 1; i <= 72; i++) {
+    const opt = document.createElement('option');
+    opt.value = i; opt.innerText = ragaLibrary[i].name;
+    if (i === 15) opt.selected = true;
+    dd.appendChild(opt);
+  }
+}
+
+function loadSelectedRaga() {
+  const id = document.getElementById('ragaLibraryDropdown').value;
+  const raga = ragaLibrary[id];
+  document.getElementById('ragaCardTitle').innerText = raga.name;
+  document.getElementById('ragaAroText').innerText = raga.aroLabels.join(" ");
+  document.getElementById('ragaAvaText').innerText = raga.avaLabels.join(" ");
+}
+
+function playCurrentRagaLibrary() {
+  const id = document.getElementById('ragaLibraryDropdown').value;
+  const raga = ragaLibrary[id];
+  startSkillPractice([...raga.aroNotes, ...raga.avaNotes], [...raga.aroLabels, ...raga.avaLabels]);
+}
+
+// ==============================
+// SIDEBAR
+// ==============================
+function toggleSidebar() {
+  document.getElementById('mainWorkspace').classList.toggle('sidebar-closed');
+  setTimeout(resizeCanvas, 350);
+}
+
+// ==============================
+// COMPOSITION BUILDER
+// ==============================
+function toggleCaptureMode() {
+  captureMode = !captureMode;
+  const btn = document.getElementById('captureModeBtn');
+  btn.className = captureMode ? 'capture-btn active' : 'capture-btn';
+  btn.textContent = captureMode ? '🎤 Capture to Song ON' : '🎤 Capture to Song OFF';
+  if (captureMode && !isMicActive) {
+    startMic();
+  }
+}
+
+function clearNotesInput() {
+  document.getElementById('customNotesInput').value = '';
+}
+
+function promptAddNote() {
+  const note = prompt("Type a Swara (സ, രി, ഗ, മ, പ, ധ, നി) or Western note (e.g. C4, F#4):");
+  if (note) {
+    const f = document.getElementById('customNotesInput');
+    f.value = (f.value ? f.value + " " : "") + note.trim();
+  }
+}
+
+function appendNoteToComposer(note) {
+  const now = Date.now();
+  if (lastCapturedNote === note && now - lastCaptureTime < 600) return; 
+  lastCapturedNote = note;
+  lastCaptureTime = now;
+
+  const base = getNoteBase(note);
+  const swara = noteToSwara[base];
+  if (!swara || swara === '—') return; 
+
+  const f = document.getElementById('customNotesInput');
+  f.value = (f.value ? f.value + " " : "") + swara;
+}
+
+function addNewSongToFeed() {
+  const title = document.getElementById('customSongNameInput').value.trim();
+  const rawNotes = document.getElementById('customNotesInput').value.trim();
+  if (!title || !rawNotes) return alert("Please fill both title and notes.");
+
+  const segments = rawNotes.split(/\s+/);
+  const notesArr = [], labelsArr = [];
+
+  segments.forEach(s => {
+    if (swaraToNote[s]) {
+      notesArr.push(swaraToNote[s]);
+      labelsArr.push(s);
+    } else if (noteFreqs[s]) {
+      notesArr.push(s);
+      labelsArr.push(s);
+    }
+  });
+
+  if (notesArr.length === 0) return alert("Could not match any notes. Use swaras (സ, രി...) or Western notes.");
+
+  const container = document.getElementById('customSongsPlaylistContainer');
+  const row = document.createElement('div');
+  row.className = "note-row";
+  row.onclick = () => startSkillPractice(notesArr, labelsArr);
+  row.innerHTML = `<div class="song-row-title">${title}</div><div class="carnatic-notation">${labelsArr.join(' &nbsp; ')}</div>`;
+  container.appendChild(row);
+}
+
+// ==============================
+// WATERFALL NOTE STREAMS
+// ==============================
+let noteStreams = [];
+let totalAttempts = 0;
+let mistakesCount = 0;
+let skillActiveNotes = [];
+
+function setupWaterfallBlocks(notesArray, labelsArray) {
+  noteStreams = []; 
+  const canvasRect = canvas.getBoundingClientRect();
+
+  notesArray.forEach((note, index) => {
+    const label = labelsArray[index] || note;
+    const keyEl = document.querySelector(`[data-note="${note}"]`);
+
+    let blockX, blockW;
+    if (keyEl) {
+      const kr = keyEl.getBoundingClientRect();
+      blockX = kr.left - canvasRect.left + (kr.width / 2) - 15;
+      blockW = Math.max(kr.width - 2, 22);
+    } else {
+      blockX = 40 + index * 45;
+      blockW = 34;
+    }
+
+    noteStreams.push({
+      x: blockX, y: -(index * 110) - 60,
+      w: blockW, h: 42,
+      label, note,
+      done: false
+    });
+  });
+}
+
+function startSkillPractice(notesArray, labelsArray) {
+  clearHints();
+  skillActiveNotes = notesArray;
+  notesArray.forEach(n => document.querySelector(`[data-note="${n}"]`)?.classList.add('hint'));
+  setTimeout(() => setupWaterfallBlocks(notesArray, labelsArray), 80);
+  document.getElementById('streamTitle').textContent = `Streaming: ${notesArray.length} notes`;
+}
+
+function triggerLinePractice(notesArray, labelsArray) {
+  startSkillPractice(notesArray, labelsArray);
+}
+
+function clearHints() {
+  skillActiveNotes = [];
+  document.querySelectorAll('.white-key, .black-key').forEach(k => {
+    k.classList.remove('hint','active','wrong');
+  });
+}
+
+// ==============================
+// KEY PRESS HANDLER
+// ==============================
+function handleKeyPress(note) {
+  initAudio();
+  totalAttempts++;
+
+  let hitBlock = null;
+  for (const block of noteStreams) {
+    if (block.note === note && block.y >= canvas.height - 75 && block.y <= canvas.height + block.h) {
+      hitBlock = block;
+      break;
+    }
+  }
+
+  playTone(note);
+
+  const keyEl = document.querySelector(`[data-note="${note}"]`);
+  if (keyEl) {
+    if (hitBlock) {
+      keyEl.classList.add('active');
+      setTimeout(() => keyEl.classList.remove('active'), 180);
+      noteStreams = noteStreams.filter(b => b !== hitBlock);
+    } else {
+      mistakesCount++;
+      keyEl.classList.add('wrong');
+      setTimeout(() => keyEl.classList.remove('wrong'), 220);
+    }
+  }
+  updateSummaryMetrics();
+}
+
+function playTone(note) {
+  if (!audioCtx || !noteFreqs[note]) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(noteFreqs[note], audioCtx.currentTime);
+  gain.gain.setValueAtTime(0, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.35, audioCtx.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.65);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.7);
+}
+
+// ==============================
+// STATS
+// ==============================
+function updateSummaryMetrics() {
+  const acc = totalAttempts > 0 ? Math.round(((totalAttempts - mistakesCount) / totalAttempts) * 100) : 100;
+  document.getElementById('statTotal').innerText = totalAttempts;
+  document.getElementById('statMistakes').innerText = mistakesCount;
+  document.getElementById('statAccuracy').innerText = acc + '%';
+}
+
+function resetStats() {
+  totalAttempts = 0; mistakesCount = 0;
+  updateSummaryMetrics();
+}
+
+function toggleSummaryPanel() {
+  const p = document.getElementById('summaryOverlay');
+  p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+}
+
+// ==============================
+// YOUTUBE LOADER
+// ==============================
+function loadSong() {
+  const url = document.getElementById('youtubeUrl').value;
+  const m = url.match(/(?:youtu\.be\/|v=|embed\/)([^#&?]{11})/);
+  if (m) {
+    document.getElementById('videoContainer').innerHTML =
+      `<iframe width="100%" height="140px" src="https://www.youtube.com/embed/${m[1]}?enablejsapi=1" frameborder="0" allowfullscreen></iframe>`;
+  } else {
+    alert("Invalid YouTube URL.");
+  }
+}
+
+// ==============================
+// MIC DETECTION
+// ==============================
+function toggleMicDetection() {
+  initAudio();
+  if (isMicActive) {
+    stopMic();
+  } else {
+    startMic();
+  }
+}
+
+function startMic() {
+  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    .then(stream => {
+      isMicActive = true;
+      document.getElementById('micToggleBtn').className = "mic-btn active";
+      document.getElementById('micToggleBtn').innerText = "🎙️ Mic: ON 🔊";
+      document.getElementById('micNoteCapture').style.display = 'block';
+
+      const src = audioCtx.createMediaStreamSource(stream);
+      analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 2048;
+      src.connect(analyserNode);
+      micBuffer = new Float32Array(analyserNode.fftSize);
+      pitchLoop();
+    })
+    .catch(() => alert("Microphone permission denied."));
+}
+
+function stopMic() {
+  isMicActive = false;
+  document.getElementById('micToggleBtn').className = "mic-btn";
+  document.getElementById('micToggleBtn').innerText = "🎙️ Mic: OFF";
+  document.getElementById('pitchDisplay').innerText = "Pitch: Idle";
+  document.getElementById('micNoteCapture').style.display = 'none';
+}
+
+function pitchLoop() {
+  if (!isMicActive) return;
+  analyserNode.getFloatTimeDomainData(micBuffer);
+  const freq = autoCorrelate(micBuffer, audioCtx.sampleRate);
+  const now = Date.now();
+
+  if (freq > 0 && (now - lastAnalysisTime > 300)) {
+    let closest = null, minDiff = Infinity;
+    for (const note in noteFreqs) {
+      const diff = Math.abs(noteFreqs[note] - freq);
+      if (diff < minDiff) { minDiff = diff; closest = note; }
+    }
+    if (closest && minDiff < 12) {
+      document.getElementById('pitchDisplay').innerText = `Pitch: ${closest} (${Math.round(freq)}Hz)`;
+      document.getElementById('micNoteCapture').innerText = `Detected: ${closest}`;
+
+      if (captureMode) {
+        appendNoteToComposer(closest);
+      } else {
+        handleKeyPress(closest);
+      }
+      lastAnalysisTime = now;
+    }
+  }
+  requestAnimationFrame(pitchLoop);
+}
+
+function autoCorrelate(buf, sampleRate) {
+  let size = buf.length;
+  let rms = 0;
+  for (let i = 0; i < size; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / size);
+  if (rms < 0.02) return -1;
+
+  let r1 = 0, r2 = size - 1;
+  for (let i = 0; i < size / 2; i++) { if (Math.abs(buf[i]) < 0.15) { r1 = i; break; } }
+  for (let i = size - 1; i >= size / 2; i--) { if (Math.abs(buf[i]) < 0.15) { r2 = i; break; } }
+  buf = buf.slice(r1, r2);
+  size = buf.length;
+
+  const c = new Float32Array(size);
+  for (let i = 0; i < size; i++)
+    for (let j = 0; j < size - i; j++)
+      c[i] += buf[j] * buf[j + i];
+
+  let d = 0;
+  while (c[d] > c[d + 1]) d++;
+  let maxVal = -1, maxPos = -1;
+  for (let i = d; i < size; i++) {
+    if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
+  }
+  return maxPos > 0 ? sampleRate / maxPos : -1;
+}
+
+// ==============================
+// CANVAS WATERFALL RENDERER
+// ==============================
+const canvas = document.getElementById('visualizerCanvas');
+const ctx2d = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const panel = canvas.parentElement;
+  canvas.width = panel.clientWidth;
+  canvas.height = panel.clientHeight - 42; 
+}
+window.addEventListener('resize', () => { resizeCanvas(); });
+resizeCanvas();
+
+function animate() {
+  ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+  const speed = parseInt(document.getElementById('speedSlider').value, 10);
+
+  // Hit zone line setup
+  ctx2d.strokeStyle = "rgba(0,173,181,0.35)";
+  ctx2d.lineWidth = 2;
+  ctx2d.beginPath();
+  ctx2d.moveTo(0, canvas.height - 50);
+  ctx2d.lineTo(canvas.width, canvas.height - 50);
+  ctx2d.stroke();
+  ctx2d.fillStyle = "rgba(0,173,181,0.07)";
+  ctx2d.fillRect(0, canvas.height - 52, canvas.width, 52);
+
+  // Synchronize stream locations onto piano key alignments dynamically
+  noteStreams.forEach(note => {
+    let targetKey = document.querySelector(`[data-note="${note.note}"]`);
+    if (targetKey) {
+      let canvasRect = canvas.getBoundingClientRect();
+      let keyRect = targetKey.getBoundingClientRect();
+      note.x = keyRect.left - canvasRect.left + (keyRect.width / 2) - (note.w / 2);
+    }
+  });
+
+  // Draw notes
+  for (const note of noteStreams) {
+    ctx2d.fillStyle = '#00adb5';
+    ctx2d.beginPath();
+    ctx2d.roundRect(note.x, note.y, note.w, note.h, 4);
+    ctx2d.fill();
+
+    ctx2d.fillStyle = '#fff';
+    ctx2d.font = 'bold 13px sans-serif';
+    ctx2d.textAlign = 'center';
+    ctx2d.textBaseline = 'middle';
+    ctx2d.fillText(note.label, note.x + note.w / 2, note.y + note.h / 2);
+
+    note.y += speed;
+  }
+
+  // Filter dropped notes safely out of arrays 
+  noteStreams = noteStreams.filter(n => n.y < canvas.height + 60);
+
+  requestAnimationFrame(animate);
+}
+
+// ==============================
+// INITIALIZATION
+// ==============================
+generateMelakartaLibrary();
+buildPiano();
+initRagaDropdown();
+loadSelectedRaga();
+animate();
+</script>
+</body>
+</html>
