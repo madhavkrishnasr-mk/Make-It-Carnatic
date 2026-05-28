@@ -211,6 +211,25 @@
     .btn-yes { background: #00adb5; color: #fff; }
     .btn-no { background: #29292e; color: #e1e1e6; }
 
+    /* 3-2-1 Countdown Overlay Screen */
+    .countdown-screen {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(18, 18, 20, 0.8); z-index: 90; display: flex;
+      align-items: center; justify-content: center; pointer-events: none; opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .countdown-screen.visible { opacity: 1; }
+    .countdown-text {
+      font-size: 80px; font-weight: 900; color: #ff9f43;
+      text-shadow: 0 0 20px rgba(255, 159, 67, 0.6);
+      animation: pulseText 1s ease infinite;
+    }
+    @keyframes pulseText {
+      0% { transform: scale(0.6); opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { transform: scale(1.1); opacity: 0; }
+    }
+
     /* Live Performance Timer Badge */
     .timer-badge {
       background: #16161a; border: 1px solid #00adb5; color: #00adb5; padding: 2px 6px;
@@ -328,7 +347,6 @@
       .search-bar input { padding: 5px 10px; font-size: 11px; }
       .search-bar button { padding: 5px 10px; font-size: 11px; }
 
-      /* Scale down UI text components slightly on mobile viewports */
       .control-box { padding: 8px; }
       .control-box h4 { font-size: 10px; margin-bottom: 4px; }
       .raga-select-dropdown { padding: 5px; font-size: 11px; }
@@ -435,6 +453,10 @@
   </div>
 
   <div class="visualizer-panel">
+    <div id="countdownOverlay" class="countdown-screen">
+      <div id="countdownText" class="countdown-text">3</div>
+    </div>
+
     <div class="visualizer-header">
       <span id="streamTitle" style="font-weight:600; color:#00adb5;">Waterfall Stream</span>
       <div class="timer-badge" id="livePracticeTimer" style="display:none;">00:00</div>
@@ -477,7 +499,6 @@ let lastCapturedNote = null;
 let lastCaptureTime = 0;
 let lastAnalysisTime = 0;
 
-// Trackers for time counting module
 let performanceTimerInterval = null;
 let performanceSecondsElapsed = 0;
 
@@ -515,68 +536,84 @@ const noteToSwara = {
 function getNoteBase(note) { return note.replace(/\d/,''); }
 
 // ==============================
-// PIANO BUILDER (Fixed Pa, Dha, Ni Offset Targets)
+// PIANO BUILDER (Flawless Inter-Key Physics)
 // ==============================
-const whiteKeys = ['C','D','E','F','G','A','B'];
-const blackKeyMap = { 'C':'C#', 'D':'D#', 'F':'F#', 'G':'G#', 'A':'A#' };
 const WHITE_KEY_WIDTH = 45; 
 const BLACK_KEY_WIDTH = 26;
-
-// Precise offsets to stop Pa/Dha/Ni overlapping issues on mobile viewports
-const BLACK_KEY_OFFSETS = { 'C': 32, 'D': 64, 'F': 122, 'G': 154, 'A': 186 }; 
 
 function buildPiano() {
   const wrapper = document.getElementById('pianoWrapper');
   wrapper.innerHTML = '';
 
   const octaves = [3, 4, 5];
-  let pianoWidth = 0;
+  let currentLeftOffset = 0;
 
   octaves.forEach(oct => {
-    const octaveDiv = document.createElement('div');
-    octaveDiv.style.position = 'relative';
-    octaveDiv.style.display = 'flex';
-    octaveDiv.style.flexShrink = '0';
-    octaveDiv.style.width = (WHITE_KEY_WIDTH * 7) + 'px';
+    // Generate white keys first for strict visual anchor targets
+    const whiteKeysInOctave = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    const keyElements = {};
 
-    whiteKeys.forEach(wn => {
+    whiteKeysInOctave.forEach(wn => {
       const note = wn + oct;
       const key = document.createElement('div');
       key.className = 'white-key';
       key.dataset.note = note;
+      key.style.position = 'absolute';
+      key.style.left = currentLeftOffset + 'px';
+      key.style.width = WHITE_KEY_WIDTH + 'px';
       key.innerHTML = `<span class="key-label">${wn}${oct}</span>`;
+      
       key.addEventListener('mousedown', () => handleKeyPress(note));
       key.addEventListener('touchstart', e => { e.preventDefault(); handleKeyPress(note); }, { passive: false });
-      octaveDiv.appendChild(key);
+      
+      wrapper.appendChild(key);
+      keyElements[wn] = currentLeftOffset;
+      currentLeftOffset += WHITE_KEY_WIDTH;
     });
 
-    whiteKeys.forEach(wn => {
-      if (!blackKeyMap[wn]) return;
-      const note = blackKeyMap[wn] + oct;
+    // Append black keys positioned exactly between boundaries
+    const blackKeysInOctave = [
+      { base: 'C', flat: 'C#' },
+      { base: 'D', flat: 'D#' },
+      { base: 'F', flat: 'F#' },
+      { base: 'G', flat: 'G#' },
+      { base: 'A', flat: 'A#' }
+    ];
+
+    blackKeysInOctave.forEach(bk => {
+      const note = bk.flat + oct;
       const key = document.createElement('div');
       key.className = 'black-key';
       key.dataset.note = note;
-      key.style.left = BLACK_KEY_OFFSETS[wn] + 'px';
+      
+      // Calculate precise midpoint intersection between pairs
+      const baseLeft = keyElements[bk.base];
+      const blackLeft = baseLeft + WHITE_KEY_WIDTH - (BLACK_KEY_WIDTH / 2);
+      
+      key.style.left = blackLeft + 'px';
       key.style.width = BLACK_KEY_WIDTH + 'px';
+      
       key.addEventListener('mousedown', () => handleKeyPress(note));
       key.addEventListener('touchstart', e => { e.preventDefault(); handleKeyPress(note); }, { passive: false });
-      octaveDiv.appendChild(key);
+      
+      wrapper.appendChild(key);
     });
-
-    pianoWidth += WHITE_KEY_WIDTH * 7;
-    wrapper.appendChild(octaveDiv);
   });
 
+  // Final high anchor C6 note element
   const c6 = document.createElement('div');
   c6.className = 'white-key';
   c6.dataset.note = 'C6';
+  c6.style.position = 'absolute';
+  c6.style.left = currentLeftOffset + 'px';
   c6.style.width = WHITE_KEY_WIDTH + 'px';
   c6.innerHTML = `<span class="key-label">C6</span>`;
   c6.addEventListener('mousedown', () => handleKeyPress('C6'));
   c6.addEventListener('touchstart', e => { e.preventDefault(); handleKeyPress('C6'); }, { passive: false });
   wrapper.appendChild(c6);
+  currentLeftOffset += WHITE_KEY_WIDTH;
 
-  wrapper.style.width = (pianoWidth + WHITE_KEY_WIDTH) + 'px';
+  wrapper.style.width = currentLeftOffset + 'px';
   
   setTimeout(() => {
     const container = document.getElementById('kbContainer');
@@ -820,6 +857,7 @@ let noteStreams = [];
 let totalAttempts = 0;
 let mistakesCount = 0;
 let skillActiveNotes = [];
+let streamGenerationAllowed = false; 
 
 function startTimerModule() {
   clearInterval(performanceTimerInterval);
@@ -836,10 +874,35 @@ function startTimerModule() {
   }, 1000);
 }
 
-function setupWaterfallBlocks(notesArray, labelsArray) {
+function executeCountdownSequence(callback) {
+  streamGenerationAllowed = false; 
   noteStreams = []; 
-  const canvasRect = canvas.getBoundingClientRect();
+  const overlay = document.getElementById('countdownOverlay');
+  const textEl = document.getElementById('countdownText');
+  
+  overlay.classList.add('visible');
+  let currentCount = 3;
+  textEl.innerText = currentCount;
+  
+  let cdInterval = setInterval(() => {
+    currentCount--;
+    if (currentCount > 0) {
+      textEl.innerText = currentCount;
+    } else if (currentCount === 0) {
+      textEl.innerText = "GO!";
+    } else {
+      clearInterval(cdInterval);
+      overlay.classList.remove('visible');
+      streamGenerationAllowed = true; 
+      callback();
+    }
+  }, 1000);
+}
 
+function setupWaterfallBlocks(notesArray, labelsArray) {
+  if (!streamGenerationAllowed) return;
+  
+  const canvasRect = canvas.getBoundingClientRect();
   notesArray.forEach((note, index) => {
     const label = labelsArray[index] || note;
     const keyEl = document.querySelector(`[data-note="${note}"]`);
@@ -873,9 +936,13 @@ function startSkillPractice(notesArray, labelsArray) {
     const keyEl = document.querySelector(`[data-note="${n}"]`);
     if (keyEl) keyEl.classList.add('hint');
   });
-  
-  setTimeout(() => setupWaterfallBlocks(notesArray, labelsArray), 100);
+
   document.getElementById('streamTitle').textContent = `Stream: ${notesArray.length} Notes`;
+  
+  // Launch the 3-2-1 Countdown timer before pushing blocks
+  executeCountdownSequence(() => {
+    setupWaterfallBlocks(notesArray, labelsArray);
+  });
 }
 
 function clearHints() {
@@ -940,7 +1007,6 @@ function updateSummaryMetrics() {
   document.getElementById('statAccuracy').innerText = acc + '%';
 }
 
-// Reset performance system context
 function resetStats() {
   totalAttempts = 0; mistakesCount = 0;
   updateSummaryMetrics();
@@ -956,7 +1022,6 @@ function toggleSummaryPanel() {
 // ==============================
 // MEDIA CONTROLS
 // ==============================
-// Load custom performance elements via web frame urls
 function loadSong() {
   const url = document.getElementById('youtubeUrl').value;
   const m = url.match(/(?:youtu\.be\/|v=|embed\/)([^#&?]{11})/);
@@ -1033,6 +1098,7 @@ function pitchLoop() {
   requestAnimationFrame(pitchLoop);
 }
 
+// Frequency extraction processing
 function autoCorrelate(buf, sampleRate) {
   let size = buf.length;
   let rms = 0;
@@ -1087,7 +1153,6 @@ function animate() {
   ctx2d.fillStyle = "rgba(0,173,181,0.07)";
   ctx2d.fillRect(0, canvas.height - 52, canvas.width, 52);
 
-  // Align positions accurately relative to target canvas zones
   noteStreams.forEach(note => {
     let targetKey = document.querySelector(`[data-note="${note.note}"]`);
     if (targetKey) {
@@ -1112,7 +1177,6 @@ function animate() {
     note.y += speed;
   }
 
-  // Handle stream list clearing limits dynamically
   if (noteStreams.length > 0 && noteStreams[noteStreams.length - 1].y > canvas.height + 10) {
     clearInterval(performanceTimerInterval);
   }
