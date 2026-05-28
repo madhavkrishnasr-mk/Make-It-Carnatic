@@ -73,6 +73,11 @@
       min-height: 0;
     }
 
+    /* Target state when menu sidebar is collapsed */
+    .workspace.sidebar-closed {
+      grid-template-columns: 0px 1fr;
+    }
+
     .left-panel {
       background-color: #16161a;
       border-right: 1px solid #29292e;
@@ -81,8 +86,16 @@
       gap: 10px;
       padding: 12px;
       overflow-y: auto;
-      transition: transform 0.3s ease, opacity 0.2s ease;
       min-height: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .workspace.sidebar-closed .left-panel {
+      overflow: hidden;
+      padding: 0;
+      border: none;
+      opacity: 0;
+      pointer-events: none;
     }
 
     .control-box {
@@ -153,6 +166,35 @@
       padding: 4px 8px; border-radius: 4px; line-height: 1; transition: background 0.2s;
     }
     .remove-song-btn:hover { background: rgba(255,77,77,0.15); }
+
+    /* === METRONOME INTERFACE STYLES === */
+    .metronome-box {
+      background: #1a1a1e; border: 1px solid #29292e; border-radius: 6px;
+      padding: 8px 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .metronome-dots-container {
+      display: flex; gap: 8px; align-items: center; justify-content: center; margin: 2px 0;
+    }
+    .metro-dot {
+      width: 12px; height: 12px; border-radius: 50%; background-color: #29292e;
+      border: 1px solid #444; transition: background-color 0.1s ease, box-shadow 0.1s ease;
+    }
+    .metro-dot.pulse-active {
+      background-color: #2ecc71 !important;
+      box-shadow: 0 0 10px #2ecc71;
+    }
+    .metro-controls { display: flex; align-items: center; gap: 6px; }
+    .metro-select {
+      background: #202024; border: 1px solid #29292e; color: #fff;
+      padding: 4px 6px; border-radius: 4px; font-size: 12px; outline: none; cursor: pointer;
+    }
+    .metro-btn {
+      background: #202024; border: 1px solid #00adb5; color: #00adb5;
+      padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer;
+    }
+    .metro-btn.running {
+      border-color: #ff4d4d; color: #ff4d4d;
+    }
 
     /* === VISUALIZER === */
     .visualizer-panel {
@@ -312,6 +354,9 @@
         grid-template-rows: 1fr;
         position: relative;
       }
+      .workspace.sidebar-closed {
+        grid-template-columns: 1fr;
+      }
 
       .left-panel {
         position: absolute;
@@ -320,15 +365,14 @@
         width: 100%;
         height: 100%;
         z-index: 5;
-        transform: translateX(0);
         opacity: 1;
         border-right: none;
         padding: 8px;
         gap: 8px;
+        pointer-events: auto;
       }
 
       .workspace.sidebar-closed .left-panel {
-        transform: translateX(-100%);
         opacity: 0;
         pointer-events: none;
       }
@@ -389,6 +433,31 @@
     <button class="sidebar-toggle" onclick="toggleSidebar()">☰ Menu</button>
     <div class="logo">Make it Karnatic</div>
   </div>
+
+  <div class="metronome-box">
+    <div class="metro-controls">
+      <select id="metroTimingSelect" class="metro-select">
+        <option value="2/4">2/4 Timing</option>
+        <option value="3/4">3/4 Timing</option>
+        <option value="4/4" selected>4/4 Timing</option>
+        <option value="5/4">5/4 Timing</option>
+        <option value="6/4">6/4 Timing</option>
+        <option value="3/8">3/8 Timing</option>
+        <option value="6/8">6/8 Timing</option>
+        <option value="7/8">7/8 Timing</option>
+        <option value="9/8">9/8 Timing</option>
+        <option value="12/8">12/8 Timing</option>
+      </select>
+      <button id="metroToggleBtn" class="metro-btn" onclick="toggleMetronome()">⏱️ Start</button>
+    </div>
+    <div class="metronome-dots-container">
+      <div class="metro-dot" id="mdot-0"></div>
+      <div class="metro-dot" id="mdot-1"></div>
+      <div class="metro-dot" id="mdot-2"></div>
+      <div class="metro-dot" id="mdot-3"></div>
+    </div>
+  </div>
+
   <div class="search-bar">
     <input type="text" id="youtubeUrl" placeholder="Paste YouTube link...">
     <button onclick="loadSong()">Load</button>
@@ -515,6 +584,76 @@ function handleInstrumentResponse(hasPiano) {
 }
 
 // ==============================
+// NEW CRYSTAL BELL METRONOME ENGINE
+// ==============================
+let metroIntervalId = null;
+let metroRunning = false;
+let currentMetroBeatIndex = 0;
+
+function toggleMetronome() {
+  initAudio();
+  const btn = document.getElementById('metroToggleBtn');
+  if (metroRunning) {
+    clearInterval(metroIntervalId);
+    metroRunning = false;
+    btn.textContent = "⏱️ Start";
+    btn.classList.remove('running');
+    clearMetroDots();
+  } else {
+    metroRunning = true;
+    btn.textContent = "⏱️ Stop";
+    btn.classList.add('running');
+    currentMetroBeatIndex = 0;
+    
+    // Default standard speed parameters (120 BPM)
+    const intervalMs = (60 / 120) * 1000;
+    triggerMetroBeatTick(); 
+    metroIntervalId = setInterval(triggerMetroBeatTick, intervalMs);
+  }
+}
+
+function triggerMetroBeatTick() {
+  // Flash light green dots one-by-one inside the 4-dot visualization layout
+  clearMetroDots();
+  const activeDotId = currentMetroBeatIndex % 4;
+  document.getElementById(`mdot-${activeDotId}`).classList.add('pulse-active');
+
+  // Trigger synthesized audio bell context chime
+  if (audioCtx) {
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.type = 'sine';
+
+    // The first beat plays a distinct hard beat crystal chime
+    if (currentMetroBeatIndex === 0) {
+      osc.frequency.setValueAtTime(1100, audioCtx.currentTime); 
+      gainNode.gain.setValueAtTime(0.45, audioCtx.currentTime);
+    } else {
+      osc.frequency.setValueAtTime(750, audioCtx.currentTime); 
+      gainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    }
+
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.18);
+  }
+
+  // Parse custom configured measure properties from timing dropdown selection
+  const rawTiming = document.getElementById('metroTimingSelect').value;
+  const timingMaxBeats = parseInt(rawTiming.split('/')[0], 10) || 4;
+
+  currentMetroBeatIndex = (currentMetroBeatIndex + 1) % timingMaxBeats;
+}
+
+function clearMetroDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById(`mdot-${i}`).classList.remove('pulse-active');
+  }
+}
+
+// ==============================
 // NOTE FREQUENCIES  (C3–C6)
 // ==============================
 const noteFreqs = {
@@ -536,7 +675,7 @@ const noteToSwara = {
 function getNoteBase(note) { return note.replace(/\d/,''); }
 
 // ==============================
-// PIANO BUILDER (Flawless Inter-Key Physics)
+// PIANO BUILDER
 // ==============================
 const WHITE_KEY_WIDTH = 45; 
 const BLACK_KEY_WIDTH = 26;
@@ -549,7 +688,6 @@ function buildPiano() {
   let currentLeftOffset = 0;
 
   octaves.forEach(oct => {
-    // Generate white keys first for strict visual anchor targets
     const whiteKeysInOctave = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
     const keyElements = {};
 
@@ -571,7 +709,6 @@ function buildPiano() {
       currentLeftOffset += WHITE_KEY_WIDTH;
     });
 
-    // Append black keys positioned exactly between boundaries
     const blackKeysInOctave = [
       { base: 'C', flat: 'C#' },
       { base: 'D', flat: 'D#' },
@@ -586,7 +723,6 @@ function buildPiano() {
       key.className = 'black-key';
       key.dataset.note = note;
       
-      // Calculate precise midpoint intersection between pairs
       const baseLeft = keyElements[bk.base];
       const blackLeft = baseLeft + WHITE_KEY_WIDTH - (BLACK_KEY_WIDTH / 2);
       
@@ -600,7 +736,6 @@ function buildPiano() {
     });
   });
 
-  // Final high anchor C6 note element
   const c6 = document.createElement('div');
   c6.className = 'white-key';
   c6.dataset.note = 'C6';
@@ -939,7 +1074,6 @@ function startSkillPractice(notesArray, labelsArray) {
 
   document.getElementById('streamTitle').textContent = `Stream: ${notesArray.length} Notes`;
   
-  // Launch the 3-2-1 Countdown timer before pushing blocks
   executeCountdownSequence(() => {
     setupWaterfallBlocks(notesArray, labelsArray);
   });
@@ -1098,7 +1232,6 @@ function pitchLoop() {
   requestAnimationFrame(pitchLoop);
 }
 
-// Frequency extraction processing
 function autoCorrelate(buf, sampleRate) {
   let size = buf.length;
   let rms = 0;
