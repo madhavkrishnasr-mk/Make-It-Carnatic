@@ -73,7 +73,6 @@
       min-height: 0;
     }
 
-    /* Target state when menu sidebar is collapsed */
     .workspace.sidebar-closed {
       grid-template-columns: 0px 1fr;
     }
@@ -584,7 +583,7 @@ function handleInstrumentResponse(hasPiano) {
 }
 
 // ==============================
-// NEW CRYSTAL BELL METRONOME ENGINE
+// METRONOME ENGINE
 // ==============================
 let metroIntervalId = null;
 let metroRunning = false;
@@ -605,7 +604,6 @@ function toggleMetronome() {
     btn.classList.add('running');
     currentMetroBeatIndex = 0;
     
-    // Default standard speed parameters (120 BPM)
     const intervalMs = (60 / 120) * 1000;
     triggerMetroBeatTick(); 
     metroIntervalId = setInterval(triggerMetroBeatTick, intervalMs);
@@ -613,18 +611,15 @@ function toggleMetronome() {
 }
 
 function triggerMetroBeatTick() {
-  // Flash light green dots one-by-one inside the 4-dot visualization layout
   clearMetroDots();
   const activeDotId = currentMetroBeatIndex % 4;
   document.getElementById(`mdot-${activeDotId}`).classList.add('pulse-active');
 
-  // Trigger synthesized audio bell context chime
   if (audioCtx) {
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     osc.type = 'sine';
 
-    // The first beat plays a distinct hard beat crystal chime
     if (currentMetroBeatIndex === 0) {
       osc.frequency.setValueAtTime(1100, audioCtx.currentTime); 
       gainNode.gain.setValueAtTime(0.45, audioCtx.currentTime);
@@ -640,7 +635,6 @@ function triggerMetroBeatTick() {
     osc.stop(audioCtx.currentTime + 0.18);
   }
 
-  // Parse custom configured measure properties from timing dropdown selection
   const rawTiming = document.getElementById('metroTimingSelect').value;
   const timingMaxBeats = parseInt(rawTiming.split('/')[0], 10) || 4;
 
@@ -654,7 +648,7 @@ function clearMetroDots() {
 }
 
 // ==============================
-// NOTE FREQUENCIES  (C3–C6)
+// NOTE FREQUENCIES (C3–C6)
 // ==============================
 const noteFreqs = {
   "C3":130.81,"C#3":138.59,"D3":146.83,"D#3":155.56,"E3":164.81,"F3":174.61,"F#3":185.00,"G3":196.00,"G#3":207.65,"A3":220.00,"A#3":233.08,"B3":246.94,
